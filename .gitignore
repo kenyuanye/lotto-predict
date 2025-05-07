@@ -1,0 +1,26 @@
+# Ignore directories
+artifacts/*
+data/*
+models/*
+
+# Exception for sub directory and files
+!artifacts/catboost_info/
+!artifacts/logs/
+!artifacts/tensorboard_events/
+!data/clean.py
+!data/draw_history.xlsx
+!data/active_tickets.xlsx
+!models/models_symbolic
+
+
+# Ignore everything in catboost_info/
+artifacts/catboost_info/*
+artifacts/logs/*
+models/models_symbolic/*
+
+# Except learn_error.tsv
+!artifacts/catboost_info/learn_error.tsv
+!artifacts/catboost_info/learn
+!artifacts/logs/run.log
+!models/models_symbolic/test.txt
+

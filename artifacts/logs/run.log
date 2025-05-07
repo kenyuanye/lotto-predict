@@ -1,0 +1,54 @@
+2025-04-25 07:14:09,686 [INFO] 🚀 Lotto Predictor script started
+2025-04-25 07:14:09,736 [INFO] 📥 Loading draw and ticket data from Excel
+2025-04-25 07:14:09,936 [INFO] ✅ Loaded 1677 draws and 0 active tickets
+2025-04-25 07:14:09,936 [INFO] 🛑 Exclusion list: set()
+2025-04-25 07:14:09,936 [ERROR] ❌ Model loading failed: 
+2025-04-25 07:14:16,560 [INFO] 🚀 Lotto Predictor script started
+2025-04-25 07:14:16,561 [INFO] 📥 Loading draw and ticket data from Excel
+2025-04-25 07:14:16,721 [INFO] ✅ Loaded 1677 draws and 0 active tickets
+2025-04-25 07:14:16,722 [INFO] 🛑 Exclusion list: set()
+2025-04-25 07:14:16,724 [ERROR] ❌ Model training failed: Input y contains NaN.
+2025-04-25 07:14:16,724 [ERROR] ❌ Model loading failed: 
+2025-04-25 07:19:15,129 [INFO] 🚀 Lotto Predictor script started
+2025-04-25 07:19:15,180 [INFO] 📥 Loading draw and ticket data from Excel
+2025-04-25 07:19:15,352 [INFO] ✅ Loaded 1677 draws and 0 active tickets
+2025-04-25 07:19:15,352 [INFO] 🛑 Exclusion list: set()
+2025-04-25 07:19:15,352 [ERROR] ❌ Model loading failed: [Errno 2] No such file or directory: 'models/model_pos1.pkl'
+2025-04-25 07:28:19,763 [INFO] 🚀 Lotto Predictor script started
+2025-04-25 07:28:19,814 [INFO] 📥 Loading draw and ticket data from Excel
+2025-04-25 07:28:19,986 [INFO] ✅ Loaded 1677 draws and 0 active tickets
+2025-04-25 07:28:19,986 [INFO] 🛑 Exclusion list: set()
+2025-04-25 07:28:19,994 [ERROR] ❌ Model loading failed: [Errno 2] No such file or directory: 'models/model_pos1.pkl'
+2025-04-25 07:29:38,512 [INFO] 🚀 Lotto Predictor script started
+2025-04-25 07:29:38,514 [INFO] 📥 Loading draw and ticket data from Excel
+2025-04-25 07:29:38,672 [INFO] ✅ Loaded 1677 draws and 0 active tickets
+2025-04-25 07:29:38,672 [INFO] 🛑 Exclusion list: set()
+2025-04-25 07:29:38,676 [INFO] ⚠️ Dropped 21 missing values from training data
+2025-04-25 07:29:42,911 [ERROR] ❌ Model training failed: name 'save_models' is not defined
+2025-04-25 07:29:43,315 [INFO] 📦 Models loaded successfully
+2025-04-25 07:29:43,402 [ERROR] ❌ Prediction generation failed: 'Draw Number'
+2025-04-25 07:29:43,622 [INFO] 📊 Hot/Cold/Frequency chart rendered
+2025-04-25 07:29:44,031 [INFO] 📈 Model accuracy table displayed
+2025-04-25 07:29:44,033 [ERROR] ❌ Failed to compare predictions with actual results: No columns to parse from file
+2025-04-25 07:38:57,553 [INFO] 🚀 Lotto Predictor script started
+2025-04-25 07:38:57,605 [INFO] 📥 Loading draw and ticket data from Excel
+2025-04-25 07:38:57,794 [INFO] ✅ Loaded 1677 draws and 0 active tickets
+2025-04-25 07:38:57,795 [INFO] 🛑 Exclusion list: set()
+2025-04-25 07:38:58,386 [INFO] 📦 Models loaded successfully
+2025-04-25 07:38:58,468 [INFO] 📈 Generated predictions for draw #2478
+2025-04-25 07:38:58,469 [ERROR] ❌ Prediction generation failed: 'numpy.int64' object is not iterable
+2025-04-25 07:38:58,671 [INFO] 📊 Hot/Cold/Frequency chart rendered
+2025-04-25 07:38:59,082 [INFO] 📈 Model accuracy table displayed
+2025-04-25 07:38:59,082 [ERROR] ❌ Failed to compare predictions with actual results: No columns to parse from file
+2025-04-25 07:39:08,109 [INFO] 🚀 Lotto Predictor script started
+2025-04-25 07:39:08,109 [INFO] 📥 Loading draw and ticket data from Excel
+2025-04-25 07:39:08,230 [INFO] ✅ Loaded 1677 draws and 0 active tickets
+2025-04-25 07:39:08,230 [INFO] 🛑 Exclusion list: set()
+2025-04-25 07:39:08,233 [INFO] ⚠️ Dropped 21 missing values from training data
+2025-04-25 07:39:12,454 [INFO] ✅ Models trained successfully
+2025-04-25 07:39:12,872 [INFO] 📦 Models loaded successfully
+2025-04-25 07:39:12,969 [INFO] 📈 Generated predictions for draw #2478
+2025-04-25 07:39:12,969 [ERROR] ❌ Prediction generation failed: 'numpy.int64' object is not iterable
+2025-04-25 07:39:13,132 [INFO] 📊 Hot/Cold/Frequency chart rendered
+2025-04-25 07:39:13,529 [INFO] 📈 Model accuracy table displayed
+2025-04-25 07:39:13,529 [ERROR] ❌ Failed to compare predictions with actual results: No columns to parse from file
