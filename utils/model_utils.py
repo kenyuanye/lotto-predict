@@ -1,5 +1,12 @@
 # utils/model_utils.py
 
+import os
+import joblib
+import logging
+
+MODEL_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models")
+
+
 def get_available_models():
     available = {}
 
@@ -56,3 +63,31 @@ def get_missing_model_libraries():
         missing.append(("CatBoost", "pip install catboost"))
 
     return missing
+
+
+def load_models():
+    models = {}
+    try:
+        # Full Set
+        full_model_path = os.path.join(MODEL_DIR, "model_fullset.pkl")
+        if os.path.exists(full_model_path):
+            models["full"] = joblib.load(full_model_path)
+            logging.info("✅ Loaded full set model.")
+
+        # PowerBall
+        pb_path = os.path.join(MODEL_DIR, "model_powerball.pkl")
+        if os.path.exists(pb_path):
+            models["Power Ball"] = joblib.load(pb_path)
+            logging.info("✅ Loaded PowerBall model.")
+
+        # Individual Positions
+        for i in range(1, 7):
+            pos_path = os.path.join(MODEL_DIR, f"model_pos{i}.pkl")
+            if os.path.exists(pos_path):
+                models[str(i)] = joblib.load(pos_path)
+                logging.info(f"✅ Loaded model_pos{i}.pkl")
+
+        return models
+    except Exception as e:
+        logging.error(f"❌ Failed to load models: {e}", exc_info=True)
+        return {}

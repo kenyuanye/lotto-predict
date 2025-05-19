@@ -1,29 +1,32 @@
-# utils/symbolic_trainer.py
+# trainers/symbolic_trainer.py
 
 import os
+import sys
 import joblib
 import pandas as pd
-import numpy as np
 from gplearn.genetic import SymbolicRegressor
-import logging
 
-MODEL_DIR = "models_symbolic"
+# Enable parent directory access
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from utils.feature_engineering import build_features_for_prediction
+from utils import NUMBER_COLUMNS, POWERBALL_COLUMN
+
+MODEL_DIR = os.path.join(os.path.dirname(__file__), "..", "models", "models_symbolic")
 os.makedirs(MODEL_DIR, exist_ok=True)
 
-NUMBER_COLUMNS = ["1", "2", "3", "4", "5", "6"]
-POWERBALL_COLUMN = "Power Ball"
-
 def train_symbolic_models(draw_df: pd.DataFrame, logger=None):
-    """Ultra-High-Accuracy symbolic regression training."""
+    """Train SymbolicRegressor models for all positions using full features."""
     log = logger.info if logger else print
-    err = logger.error if logger else print
+    err = logger.error if logger else (lambda msg, **kwargs: print(msg))
 
     try:
         df = draw_df.copy().reset_index(drop=True)
-        df["DrawIndex"] = df.index
-        X = df[["DrawIndex"]]
+        df["DrawIndex"] = range(len(df))
+        df["Draw Number"] = range(len(df))  # Required for some features
+        X = build_features_for_prediction(df)
 
-        for col in NUMBER_COLUMNS:
+        for i, col in enumerate(NUMBER_COLUMNS):
             y = df[col]
             model = SymbolicRegressor(
                 population_size=1500,
@@ -37,14 +40,14 @@ def train_symbolic_models(draw_df: pd.DataFrame, logger=None):
                 verbose=1,
                 parsimony_coefficient=0.0001,
                 random_state=42,
-                n_jobs=-1  # <-- Use all CPU cores for faster training
+                n_jobs=-1
             )
             model.fit(X, y)
-            model_path = os.path.join(MODEL_DIR, f"symbolic_model_pos{col}.pkl")
+            model_path = os.path.join(MODEL_DIR, f"symbolic_model_pos{i+1}.pkl")
             joblib.dump(model, model_path)
-            log(f"🧠 Ultra Symbolic model trained for position {col} and saved to {model_path}")
+            log(f"✅ Symbolic model for position {col} saved → {model_path}")
 
-        # Train PowerBall separately
+        # Train Powerball model
         y_pb = df[POWERBALL_COLUMN]
         model_pb = SymbolicRegressor(
             population_size=1500,
@@ -61,10 +64,18 @@ def train_symbolic_models(draw_df: pd.DataFrame, logger=None):
             n_jobs=-1
         )
         model_pb.fit(X, y_pb)
-        model_path_pb = os.path.join(MODEL_DIR, "symbolic_model_powerball.pkl")
-        joblib.dump(model_pb, model_path_pb)
-        log(f"🧠 Ultra Symbolic model trained for PowerBall and saved to {model_path_pb}")
+        pb_path = os.path.join(MODEL_DIR, "symbolic_model_powerball.pkl")
+        joblib.dump(model_pb, pb_path)
+        log(f"✅ Symbolic model for PowerBall saved → {pb_path}")
 
     except Exception as e:
-        err(f"❌ Symbolic model training failed: {e}", exc_info=True)
+        err(f"❌ Symbolic training failed: {e}", exc_info=True)
 
+# --- Optional CLI entry ---
+if __name__ == "__main__":
+    try:
+        df = pd.read_excel("data/draw_history.xlsx", parse_dates=["Draw Date"])
+        df.columns = df.columns.astype(str).str.strip()
+        train_symbolic_models(df)
+    except Exception as e:
+        print(f"❌ Failed to load data or run training: {e}")

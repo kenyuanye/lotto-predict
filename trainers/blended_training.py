@@ -1,80 +1,78 @@
-# utils/blended_training.py
+# trainers/blended_training.py
 
 import os
+import sys
+import joblib
 import pandas as pd
 import numpy as np
-import joblib
-from sklearn.multioutput import MultiOutputRegressor
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.multioutput import MultiOutputRegressor
 
-# --- Correct Base Path ---
-BASE_DIR = os.path.dirname(os.path.dirname(__file__))  # Go up from utils/
+# Allow relative imports
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from utils.feature_engineering import build_features_for_prediction
+from utils import NUMBER_COLUMNS, POWERBALL_COLUMN
+
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 MODEL_DIR = os.path.join(BASE_DIR, "models")
 DATA_DIR = os.path.join(BASE_DIR, "data")
 os.makedirs(MODEL_DIR, exist_ok=True)
 
-NUMBER_COLUMNS = ["1", "2", "3", "4", "5", "6"]
-POWERBALL_COLUMN = "Power Ball"
-
-def load_real_data(filepath=os.path.join(DATA_DIR, "draw_history.xlsx")):
-    """Load real historical draw data."""
+def load_real_data():
+    """Load historical draw data from Excel."""
+    path = os.path.join(DATA_DIR, "draw_history.xlsx")
     try:
-        df = pd.read_excel(filepath, parse_dates=["Draw Date"])
+        df = pd.read_excel(path, parse_dates=["Draw Date"])
         df.columns = df.columns.astype(str).str.strip()
+        df = df.dropna(subset=NUMBER_COLUMNS + [POWERBALL_COLUMN])
+        df["DrawIndex"] = range(len(df))
+        df["Draw Number"] = range(len(df))
         return df
     except Exception as e:
         print(f"❌ Failed to load real draw history: {e}")
         return pd.DataFrame()
 
-def load_synthetic_data(filepath=os.path.join(DATA_DIR, "reverse_engineered_sets.csv")):
-    """Load reverse engineered synthetic sets."""
-    if os.path.exists(filepath):
-        try:
-            df = pd.read_csv(filepath)
-            return df
-        except Exception as e:
-            print(f"❌ Failed to load synthetic sets: {e}")
-            return pd.DataFrame()
-    return pd.DataFrame()
+def load_synthetic_data():
+    """Load reverse engineered sets from CSV."""
+    path = os.path.join(DATA_DIR, "reverse_engineered_sets.csv")
+    if not os.path.exists(path):
+        return pd.DataFrame()
 
-def prepare_combined_dataset(real_df, synthetic_df, real_weight=0.7):
-    """Blend real and synthetic datasets."""
-    real_df = real_df.copy().reset_index(drop=True)
-    real_df["DrawIndex"] = real_df.index
-    real_X = real_df[["DrawIndex"]].values
-    real_Y_numbers = real_df[NUMBER_COLUMNS].values
-    real_Y_powerball = real_df[POWERBALL_COLUMN].values
+    try:
+        df = pd.read_csv(path)
+        df = df.dropna(subset=["Numbers", "Powerball"])
+        df[NUMBER_COLUMNS] = df["Numbers"].apply(lambda x: pd.Series(list(map(int, str(x).split(", ")))))
+        df[POWERBALL_COLUMN] = df["Powerball"].astype(int)
+        df["DrawIndex"] = range(len(df))
+        df["Draw Number"] = range(len(df))
+        return df
+    except Exception as e:
+        print(f"❌ Failed to load synthetic sets: {e}")
+        return pd.DataFrame()
 
-    numbers = synthetic_df["Numbers"].apply(lambda x: list(map(int, str(x).split(", "))))
-    pb = synthetic_df["Powerball"]
-    syn_X = np.arange(len(synthetic_df)).reshape(-1, 1)
-    syn_Y_numbers = np.vstack(numbers.values)
-    syn_Y_powerball = pb.values
+def prepare_blended_features(real_df, synthetic_df, real_weight=0.7):
+    """Blend real and synthetic datasets, build prediction features."""
+    real_n = int(real_weight * 1000)
+    syn_n = 1000 - real_n
 
-    # Determine blend sizes
-    total_size = len(real_X) + len(syn_X)
-    real_size = int(real_weight * total_size)
-    synthetic_size = total_size - real_size
+    real_sample = real_df.sample(n=min(real_n, len(real_df)), random_state=42)
+    syn_sample = synthetic_df.sample(n=min(syn_n, len(synthetic_df)), random_state=42)
 
-    # Handle case when not enough data
-    real_X = real_X[:real_size] if len(real_X) >= real_size else real_X
-    real_Y_numbers = real_Y_numbers[:real_size] if len(real_Y_numbers) >= real_size else real_Y_numbers
-    real_Y_powerball = real_Y_powerball[:real_size] if len(real_Y_powerball) >= real_size else real_Y_powerball
+    blended = pd.concat([real_sample, syn_sample]).reset_index(drop=True)
+    blended["DrawIndex"] = range(len(blended))
+    blended["Draw Number"] = range(len(blended))
 
-    syn_X = syn_X[:synthetic_size] if len(syn_X) >= synthetic_size else syn_X
-    syn_Y_numbers = syn_Y_numbers[:synthetic_size] if len(syn_Y_numbers) >= synthetic_size else syn_Y_numbers
-    syn_Y_powerball = syn_Y_powerball[:synthetic_size] if len(syn_Y_powerball) >= synthetic_size else syn_Y_powerball
+    X = build_features_for_prediction(blended)
+    Y_numbers = blended[NUMBER_COLUMNS].values
+    Y_powerball = blended[POWERBALL_COLUMN].values
 
-    combined_X = np.vstack([real_X, syn_X])
-    combined_Y_numbers = np.vstack([real_Y_numbers, syn_Y_numbers])
-    combined_Y_powerball = np.concatenate([real_Y_powerball, syn_Y_powerball])
-
-    return combined_X, combined_Y_numbers, combined_Y_powerball
+    return X, Y_numbers, Y_powerball
 
 def train_blended_model(real_weight=0.7, logger=None):
-    """Train a model using blended real + synthetic datasets."""
+    """Train and save models using blended data."""
     log = logger.info if logger else print
-    err = logger.error if logger else print
+    err = logger.error if logger else lambda msg, **kwargs: print(msg)
 
     real_df = load_real_data()
     synthetic_df = load_synthetic_data()
@@ -83,24 +81,24 @@ def train_blended_model(real_weight=0.7, logger=None):
         err("❌ Real or Synthetic data missing. Cannot train blended model.")
         return
 
-    X, Y_numbers, Y_powerball = prepare_combined_dataset(real_df, synthetic_df, real_weight=real_weight)
+    X, Y_numbers, Y_powerball = prepare_blended_features(real_df, synthetic_df, real_weight=real_weight)
 
     try:
-        # Train full number set model
+        # Train main number set model
         full_model = MultiOutputRegressor(RandomForestRegressor(n_estimators=300, random_state=42))
         full_model.fit(X, Y_numbers)
         joblib.dump(full_model, os.path.join(MODEL_DIR, "model_fullset_blended.pkl"))
-        log(f"✅ Trained and saved blended full set model with real_weight={real_weight}")
+        log(f"✅ Trained and saved blended full set model (real_weight={real_weight})")
 
-        # Train Powerball separately
+        # Train PowerBall model
         pb_model = RandomForestRegressor(n_estimators=200, random_state=42)
         pb_model.fit(X, Y_powerball)
         joblib.dump(pb_model, os.path.join(MODEL_DIR, "model_powerball_blended.pkl"))
-        log(f"✅ Trained and saved blended PowerBall model with real_weight={real_weight}")
+        log(f"✅ Trained and saved blended PowerBall model (real_weight={real_weight})")
 
     except Exception as e:
         err(f"❌ Failed to train blended model: {e}", exc_info=True)
 
-# --- Entry Point ---
+# --- Optional CLI entry ---
 if __name__ == "__main__":
     train_blended_model()

@@ -1,13 +1,13 @@
-# utils/accuracy_tracker.py
-
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, mean_absolute_error
 import logging
+import os
 
 NUMBER_COLUMNS = ["1", "2", "3", "4", "5", "6"]
 POWERBALL_COLUMN = "Power Ball"
+ACCURACY_LOG_PATH = "data/overall_predictions_log.csv"
 
 def track_accuracy(df, models):
     df = df.copy().reset_index(drop=True)
@@ -146,3 +146,85 @@ def plot_historical_accuracy_trend(draw_df: pd.DataFrame, models: dict, window: 
     except Exception as e:
         logging.error(f"❌ Failed to generate historical accuracy trend: {e}", exc_info=True)
         return None
+
+def update_accuracy_for_method(method_name, draw_df, latest_draw):
+    try:
+        required_columns = ["Method", "Draw Number", "Predicted Numbers", "Accuracy %"]
+
+        # Load or initialize log
+        if os.path.exists(ACCURACY_LOG_PATH):
+            try:
+                method_df = pd.read_csv(ACCURACY_LOG_PATH)
+            except pd.errors.EmptyDataError:
+                method_df = pd.DataFrame(columns=required_columns)
+        else:
+            method_df = pd.DataFrame(columns=required_columns)
+
+        # Ensure required columns exist
+        for col in required_columns:
+            if col not in method_df.columns:
+                method_df[col] = None
+
+        # Convert latest_draw to Series if it's a DataFrame
+        if isinstance(latest_draw, pd.DataFrame):
+            latest_draw = latest_draw.iloc[0]
+
+        draw_number = latest_draw["Draw Number"] if "Draw Number" in latest_draw else None
+        if draw_number is None:
+            logging.warning(f"⚠️ Draw Number missing for accuracy update for method {method_name}.")
+            return
+
+        pred_row = method_df[
+            (method_df["Method"] == method_name) &
+            (method_df["Draw Number"] == draw_number)
+        ]
+
+        if pred_row.empty:
+            logging.warning(f"⚠️ No prediction recorded for {method_name} on draw {draw_number}")
+            return
+
+        pred_nums = pred_row.iloc[0]["Predicted Numbers"]
+        try:
+            pred_list = list(map(int, str(pred_nums).strip("[]").split(",")))
+        except Exception as e:
+            logging.error(f"❌ Failed parsing predictions for {method_name}: {e}")
+            return
+
+        actual = list(latest_draw[NUMBER_COLUMNS].values) + [latest_draw[POWERBALL_COLUMN]]
+        matches = sum(1 for a, b in zip(actual, pred_list) if a == b)
+        accuracy_pct = round(matches / 7 * 100, 2)
+
+        method_df.loc[
+            (method_df["Method"] == method_name) &
+            (method_df["Draw Number"] == draw_number),
+            "Accuracy %"
+        ] = accuracy_pct
+
+        method_df.to_csv(ACCURACY_LOG_PATH, index=False)
+        logging.info(f"✅ Accuracy updated for {method_name} on draw {draw_number}: {accuracy_pct}%")
+
+    except Exception as e:
+        logging.error(f"❌ Failed to update accuracy for {method_name}: {e}", exc_info=True)
+        
+
+def build_accuracy_comparison_dataframe(results_dict):
+    """
+    Build a DataFrame showing accuracy % per method from the log file
+    for the most recent draw found in the results_dict.
+    """
+    if not os.path.exists(ACCURACY_LOG_PATH):
+        return pd.DataFrame(columns=["Method", "Accuracy %"])
+
+    try:
+        df = pd.read_csv(ACCURACY_LOG_PATH)
+        if df.empty or "Draw Number" not in df.columns:
+            return pd.DataFrame(columns=["Method", "Accuracy %"])
+
+        latest_draw = df["Draw Number"].max()
+        df_latest = df[df["Draw Number"] == latest_draw]
+        return df_latest[["Method", "Accuracy %"]].dropna()
+    except Exception as e:
+        logging.error(f"❌ Could not load accuracy data: {e}", exc_info=True)
+        return pd.DataFrame(columns=["Method", "Accuracy %"])
+
+

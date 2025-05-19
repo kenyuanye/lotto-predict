@@ -47,3 +47,47 @@ def ensemble_predict(base_predictions, method="average"):
         raise ValueError(f"Unknown ensemble method: {method}")
 
     return sorted(averaged_main) + [averaged_pb]
+    
+def ensure_unique_and_valid(prediction_sets):
+    """
+    Ensure each prediction set contains 6 unique main numbers (1–40) and a valid Powerball (1–10).
+    Filters out invalid sets.
+    """
+    valid_sets = []
+    for s in prediction_sets:
+        if not isinstance(s, (list, tuple)) or len(s) != 7:
+            continue
+        main = s[:6]
+        pb = s[6]
+        if len(set(main)) == 6 and all(1 <= n <= 40 for n in main) and 1 <= pb <= 10:
+            valid_sets.append(sorted(main) + [pb])
+    return valid_sets
+
+from legacy_prediction.ml_predictor import predict_with_ml
+from legacy_prediction.symbolic_predictor import predict_with_symbolic
+from legacy_prediction.walkforward_predictor import predict_with_walkforward
+
+def predict_with_ensemble(draw_df):
+    """
+    Run ensemble prediction using ML, Symbolic, and Walkforward as base sets.
+    Returns a list of 10 identical predictions for compatibility with Level 1.
+    """
+    base_sets = []
+    try:
+        base_sets.append(predict_with_ml(draw_df)[0])
+    except Exception:
+        pass
+    try:
+        base_sets.append(predict_with_symbolic(draw_df)[0])
+    except Exception:
+        pass
+    try:
+        base_sets.append(predict_with_walkforward(draw_df)[0])
+    except Exception:
+        pass
+
+    if len(base_sets) < 2:
+        return []
+
+    ensemble_set = ensemble_predict(base_sets, method="vote")  # or "average"
+    return [ensemble_set] * 10

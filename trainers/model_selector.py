@@ -1,35 +1,35 @@
-# utils/model_selector.py
+# trainers/model_selector.py
 
 import os
+import sys
 import joblib
 import numpy as np
 import pandas as pd
 import logging
-
+from collections import Counter
 from sklearn.linear_model import Ridge, LinearRegression
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.metrics import mean_absolute_error
 from sklearn.model_selection import train_test_split
-from collections import Counter
 
-MODEL_DIR = "models"
+# Add root path for relative imports
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from utils.feature_engineering import build_features_for_prediction
+from utils import NUMBER_COLUMNS, POWERBALL_COLUMN
+
+MODEL_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
 os.makedirs(MODEL_DIR, exist_ok=True)
 
-NUMBER_COLUMNS = ["1", "2", "3", "4", "5", "6"]
-POWERBALL_COLUMN = "Power Ball"
 
 def prepare_features(df):
-    """Prepare features for training."""
-    df = df.copy()
-    if "DrawIndex" not in df.columns:
-        df["DrawIndex"] = df.index
-    return df[["DrawIndex"]]
+    """Use full feature engineering pipeline to prepare model inputs."""
+    return build_features_for_prediction(df)
+
 
 def evaluate_models(df):
-    """
-    Evaluate different models and return (full evaluation, best model summary).
-    """
+    """Evaluate different regressors for each number position and Powerball."""
     df = df.copy().reset_index(drop=True)
     X = prepare_features(df)
 
@@ -44,6 +44,7 @@ def evaluate_models(df):
         "LinearRegression": LinearRegression()
     }
 
+    # Evaluate for each position 1–6
     for col in NUMBER_COLUMNS:
         y = df[col]
         model_errors = {}
@@ -62,7 +63,7 @@ def evaluate_models(df):
         for name, error in model_errors.items():
             results.append({"Position": col, "Model": name, "MAE": error})
 
-    # Powerball prediction
+    # Evaluate for Powerball
     y_pb = df[POWERBALL_COLUMN]
     pb_errors = {}
     for name, model in regressors.items():
@@ -79,7 +80,7 @@ def evaluate_models(df):
     for name, error in pb_errors.items():
         results.append({"Position": POWERBALL_COLUMN, "Model": name, "MAE": error})
 
-    # Full set model (for information, no alternative models)
+    # Evaluate full-set model
     Y_full = df[NUMBER_COLUMNS]
     X_train, X_test, Y_train, Y_test = train_test_split(X, Y_full, test_size=0.25, random_state=42)
     full_model = MultiOutputRegressor(RandomForestRegressor(n_estimators=200, random_state=42))
@@ -90,33 +91,35 @@ def evaluate_models(df):
     ])
     results.append({"Position": "Full Set", "Model": "RandomForest", "MAE": full_error})
 
-    # Summarize best models
-    summary_counter = Counter(best_model_names)
-    summary_df = pd.DataFrame.from_dict(summary_counter, orient="index", columns=["Best Model Count"]).reset_index()
-    summary_df = summary_df.rename(columns={"index": "Model"})
+    # Summarize best model types
+    summary_df = (
+        pd.DataFrame.from_dict(Counter(best_model_names), orient="index", columns=["Best Model Count"])
+        .reset_index()
+        .rename(columns={"index": "Model"})
+    )
 
     return pd.DataFrame(results), summary_df
 
+
 def train_and_save_best_models(df, logger=None):
-    """
-    Train best models based on evaluation and save to disk.
-    """
+    """Train the best model per position and Powerball and save them to disk."""
     try:
         df = df.copy().reset_index(drop=True)
         X = prepare_features(df)
         Y_full = df[NUMBER_COLUMNS]
 
-        # Evaluate to find best
         full_results, _ = evaluate_models(df)
-        logger.info("📊 Model evaluation completed for saving.")
+        if logger:
+            logger.info("📊 Model evaluation completed for saving.")
 
-        # Re-train full set model
+        # Save full set model
         full_model = MultiOutputRegressor(RandomForestRegressor(n_estimators=200, random_state=42))
         full_model.fit(X, Y_full)
         joblib.dump(full_model, os.path.join(MODEL_DIR, "model_fullset.pkl"))
-        logger.info("✅ Saved full set model.")
+        if logger:
+            logger.info("✅ Saved full set model.")
 
-        # Position-based models
+        # Save best models per position
         regressors = {
             "RandomForest": RandomForestRegressor(n_estimators=100, random_state=42),
             "GradientBoosting": GradientBoostingRegressor(n_estimators=100, random_state=42),
@@ -130,15 +133,17 @@ def train_and_save_best_models(df, logger=None):
             model = regressors[best_model_name]
             model.fit(X, y)
             joblib.dump(model, os.path.join(MODEL_DIR, f"model_pos{col}.pkl"))
-            logger.info(f"✅ Saved best model for position {col}: {best_model_name}")
+            if logger:
+                logger.info(f"✅ Saved best model for position {col}: {best_model_name}")
 
-        # Powerball model
+        # Save best PowerBall model
         y_pb = df[POWERBALL_COLUMN]
         best_pb_model_name = full_results.query(f"Position == '{POWERBALL_COLUMN}'").sort_values("MAE").iloc[0]["Model"]
         pb_model = regressors[best_pb_model_name]
         pb_model.fit(X, y_pb)
         joblib.dump(pb_model, os.path.join(MODEL_DIR, "model_powerball.pkl"))
-        logger.info(f"✅ Saved best Powerball model: {best_pb_model_name}")
+        if logger:
+            logger.info(f"✅ Saved best Powerball model: {best_pb_model_name}")
 
     except Exception as e:
         if logger:

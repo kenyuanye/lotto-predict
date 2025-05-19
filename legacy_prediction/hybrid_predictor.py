@@ -4,7 +4,7 @@ import numpy as np
 from typing import List, Tuple, Dict
 import logging
 
-from utils.custom_rules import (
+from rules.custom_rules import (
     is_cold_number,
     number_occurrence_map,
     build_historical_full_sets,
@@ -121,3 +121,24 @@ def generate_partial_match_sets(base_sets: List[List[int]], top_n=10):
     except Exception as e:
         logging.error(f"❌ Failed to generate partial match sets: {e}", exc_info=True)
         return []
+        
+def predict_with_hybrid(draw_df):
+    """
+    Generate predictions using hybrid filtering logic.
+    Uses unlikely sets + hybrid rules to produce valid top picks.
+    """
+    # Generate candidate sets
+    base_sets = generate_unlikely_sets(draw_df, top_n=100)
+
+    # Dummy ticket exclusions (can be extended later)
+    ticket_excludes = []
+
+    # Filter and rank
+    filtered, _ = filter_and_rank_sets(
+        generated_sets=base_sets,
+        draw_history=draw_df,
+        ticket_excludes=ticket_excludes,
+        top_n=10
+    )
+
+    return filtered

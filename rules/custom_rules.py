@@ -1,7 +1,6 @@
-# utils/custom_rules.py
-
 import numpy as np
 import logging
+import pandas as pd
 
 COLD_THRESHOLD = 5  # Appearances below this = cold number
 
@@ -101,7 +100,7 @@ def calculate_powerball_gaps(draw_df, window=30):
         logging.warning(f"⚠️ Failed to calculate PowerBall gaps: {e}", exc_info=True)
         return {}
 
-def powerball_bias_weight(pb_number, draw_df, max_gap=30):
+def powerball_bias_for_number(pb_number, draw_df, max_gap=30):
     """
     Calculate weight for a PowerBall number based on how many draws since it last appeared.
     Returns a float where larger gap = higher weight (towards 1.0 if very overdue).
@@ -109,7 +108,7 @@ def powerball_bias_weight(pb_number, draw_df, max_gap=30):
     try:
         sorted_draws = draw_df.sort_values("Draw Number", ascending=True)
         last_seen_idx = sorted_draws.index[sorted_draws["Power Ball"] == pb_number]
-        
+
         if last_seen_idx.empty:
             gap = len(sorted_draws)
         else:
@@ -117,8 +116,28 @@ def powerball_bias_weight(pb_number, draw_df, max_gap=30):
 
         # Normalize: if gap >= max_gap, assign near 1.0
         weight = min(gap / max_gap, 1.0)
-
         return weight
     except Exception as e:
         logging.error(f"❌ Failed to calculate PowerBall bias weight for {pb_number}: {e}", exc_info=True)
         return 0.0
+
+def powerball_bias_weight(pb_gaps: dict, draw_df: pd.DataFrame):
+    """
+    Generate normalized weights for all PowerBall numbers 1–10 using gap data.
+    Returns a list of 10 probabilities summing to 1.0.
+    """
+    try:
+        weights = []
+        for pb in range(1, 11):
+            weight = powerball_bias_for_number(pb, draw_df, max_gap=30)
+            weights.append(weight)
+
+        total = sum(weights)
+        if total == 0:
+            return [0.1] * 10  # fallback to uniform
+
+        normalized = [w / total for w in weights]
+        return normalized
+    except Exception as e:
+        logging.error(f"❌ Failed to generate normalized PowerBall weights: {e}", exc_info=True)
+        return [0.1] * 10
