@@ -9,14 +9,16 @@ NUMBERS_RANGE = list(range(1, 41))
 POWERBALL_RANGE = list(range(1, 11))
 NUM_MAIN_NUMBERS = 6
 CSV_LOG_FILE = "data/reward_learning_log.csv"
+BEST_FORMULA_FILE = "data/best_formula.json"
 
 # === Helper Functions ===
-def generate_random_set():
+
+def generate_random_set() -> List[int]:
     main_numbers = sorted(random.sample(NUMBERS_RANGE, NUM_MAIN_NUMBERS))
     powerball = random.choice(POWERBALL_RANGE)
     return main_numbers + [powerball]
 
-def calculate_match(predicted, actual):
+def calculate_match(predicted: List[int], actual: List[int]) -> (int, bool):
     main_match = len(set(predicted[:6]) & set(actual[:6]))
     powerball_match = predicted[6] == actual[6]
     return main_match, powerball_match
@@ -57,14 +59,18 @@ def apply_formula(formula: Dict) -> List[int]:
         if "avoid_values" in rules:
             pool = [n for n in pool if n not in rules["avoid_values"]]
         if "prefer_values" in rules:
-            pool = pool + rules["prefer_values"]  # bias
+            pool += rules["prefer_values"]  # add weight
         numbers.append(random.choice(pool) if pool else random.randint(1, 40))
 
     powerball = random.choice(POWERBALL_RANGE)
     return sorted(numbers) + [powerball]
 
-# === Main Reward Learning Predictor ===
+# === Main Reward Learning Trainer ===
+
 def reward_learning_predictor(draw_history: List[List[int]]) -> None:
+    """
+    Runs the learning loop, stores logs and best formula to disk.
+    """
     formula_A, formula_B = None, None
     logs = []
 
@@ -84,7 +90,6 @@ def reward_learning_predictor(draw_history: List[List[int]]) -> None:
         formula_A = generate_formula_from_failures(failed_sets)
         formula_B = invert_formula(formula_A)
 
-        # Test formula_A and formula_B on next draw if available
         try:
             next_draw = draw_history[idx + 1]
             pred_A = apply_formula(formula_A)
@@ -106,5 +111,24 @@ def reward_learning_predictor(draw_history: List[List[int]]) -> None:
         })
 
     pd.DataFrame(logs).to_csv(CSV_LOG_FILE, index=False)
-    print(f"Reward learning predictor completed. Log saved to {CSV_LOG_FILE}")
+    with open(BEST_FORMULA_FILE, "w") as f:
+        json.dump(formula_A, f, indent=2)
 
+    print(f"✅ Reward learning predictor completed.")
+    print(f"📄 Log saved to {CSV_LOG_FILE}")
+    print(f"📌 Best formula saved to {BEST_FORMULA_FILE}")
+
+# === Formula-Based Prediction ===
+
+def predict_with_reward_learning(n_sets: int = 10) -> List[List[int]]:
+    """
+    Load the best formula from disk and generate predictions.
+    """
+    try:
+        with open(BEST_FORMULA_FILE, "r") as f:
+            formula = json.load(f)
+    except FileNotFoundError:
+        print("⚠️ Best formula not found. Run reward_learning_predictor() first.")
+        return []
+
+    return [apply_formula(formula) for _ in range(n_sets)]

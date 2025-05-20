@@ -1,6 +1,10 @@
 # utils/ensemble_predictor.py
 
 import numpy as np
+from predictors.ml_core import predict_with_ml
+from predictors.symbolic_predictor import predict_with_symbolic
+from predictors.walkforward_predictor import predict_with_walkforward
+
 
 def average_predictions(prediction_sets):
     """Average multiple sets of predictions."""
@@ -63,9 +67,6 @@ def ensure_unique_and_valid(prediction_sets):
             valid_sets.append(sorted(main) + [pb])
     return valid_sets
 
-from predictors.multi_level_predictor import predict_with_ml
-from predictors.symbolic_predictor import predict_with_symbolic
-from predictors.walkforward_predictor import predict_with_walkforward
 
 def predict_with_ensemble(draw_df):
     """

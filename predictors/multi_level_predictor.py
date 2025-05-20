@@ -1,109 +1,123 @@
-# === Combined Level Predictor ===
+import itertools
+from predictors.symbolic_predictor import predict_with_symbolic
+from predictors.walkforward_predictor import predict_with_walkforward
+from predictors.reverse_engineering import predict_with_reverse
+from predictors.custom_rules_predictor import apply_custom_rules
+from predictors.ensemble_predictor import ensure_unique_and_valid
+from predictors.ml_core import predict_with_ml
+from core.feature_engineering import build_features_for_prediction
 
-# --- ML Predictor ---
-import numpy as np
-import pandas as pd
-import joblib
-import os
+# === LEVEL 1 ===
+def level_1_all_methods(draw_history_df, exclusions=None):
+    """Run all level 1 prediction methods individually."""
+    features_df = build_features_for_prediction(draw_history_df)
+    latest_features = features_df.tail(1)
 
-def predict_with_ml(models_dir, features_df):
-    predictions = []
-    for i in range(1, 7):  # For each of the 6 main numbers
-        model_path = os.path.join(models_dir, f"rf_model_pos{i}.pkl")
-        model = joblib.load(model_path)
-        pred = model.predict(features_df)
-        predictions.append(pred[0])
+    methods = {
+        'ML': lambda df, ex: predict_with_ml("models/ml", latest_features),
+        'Symbolic': predict_with_symbolic,
+        'Walkforward': predict_with_walkforward,
+        'Reverse': predict_with_reverse,
+        'Custom': lambda df, ex: apply_custom_rules(df)
+    }
 
-    # Predict Powerball
-    model_path_pb = os.path.join(models_dir, "rf_model_powerball.pkl")
-    model_pb = joblib.load(model_path_pb)
-    powerball_pred = model_pb.predict(features_df)
-
-    return sorted(predictions), int(powerball_pred[0])
-
-
-# --- Symbolic / Reward Learning Predictor ---
-import random
-
-def generate_random_set():
-    main_numbers = sorted(random.sample(range(1, 41), 6))
-    powerball = random.randint(1, 10)
-    return main_numbers, powerball
-
-def calculate_match(predicted, actual):
-    return len(set(predicted) & set(actual))
-
-def generate_formula_from_failures(failed_sets):
-    # Example formula: count frequency of numbers and pick highest
-    freq = {}
-    for s in failed_sets:
-        for num in s:
-            freq[num] = freq.get(num, 0) + 1
-    sorted_nums = sorted(freq.items(), key=lambda x: -x[1])
-    return [num for num, _ in sorted_nums[:6]]
-
-def invert_formula(formula):
-    # For reward learning, invert top choices to explore others
-    return [num for num in range(1, 41) if num not in formula][:6]
-
-def apply_formula(formula, length=6):
-    return sorted(formula[:length])
-
-def reward_learning_predictor(past_failures):
-    base_formula = generate_formula_from_failures(past_failures)
-    alt_formula = invert_formula(base_formula)
-    return apply_formula(alt_formula), random.randint(1, 10)
-
-def predict_with_reward_learning(failure_history):
-    predicted_numbers, powerball = reward_learning_predictor(failure_history)
-    return predicted_numbers, powerball
-
-
-# --- Level Orchestration and Accuracy ---
-from datetime import datetime
-import json
-
-def load_trained_models(model_dir):
-    models = {}
-    for i in range(1, 7):
-        path = os.path.join(model_dir, f"rf_model_pos{i}.pkl")
-        if os.path.exists(path):
-            models[f"pos{i}"] = joblib.load(path)
-    pb_path = os.path.join(model_dir, "rf_model_powerball.pkl")
-    if os.path.exists(pb_path):
-        models["powerball"] = joblib.load(pb_path)
-    return models
-
-def run_level_1(methods, features_df, models_dir, failure_history=[]):
     results = {}
-    if 'ml' in methods:
-        results['ml'] = predict_with_ml(models_dir, features_df)
-    if 'reward_learning' in methods:
-        results['reward_learning'] = predict_with_reward_learning(failure_history)
+    for name, func in methods.items():
+        try:
+            prediction = func(draw_history_df, exclusions)
+            prediction = ensure_unique_and_valid(prediction)
+            results[name] = prediction
+        except Exception as e:
+            results[name] = [f"❌ Error in {name}: {e}"]
+
     return results
 
-def update_level_1_accuracies(log_file, predictions, actual_draw):
-    timestamp = datetime.now().isoformat()
-    entry = {
-        "timestamp": timestamp,
-        "actual": actual_draw,
-        "predictions": predictions
-    }
-    if os.path.exists(log_file):
-        with open(log_file, "r") as f:
-            logs = json.load(f)
-    else:
-        logs = []
+# === LEVEL 2 ===
+def level_2_combinations(level_1_results):
+    """Generate predictions from combinations of two Level 1 methods."""
+    combinations = list(itertools.combinations(level_1_results.keys(), 2))
+    results = {}
+    for combo in combinations:
+        a, b = combo
+        try:
+            combined_set = combine_sets(level_1_results[a], level_1_results[b])
+            combined_set = ensure_unique_and_valid(combined_set)
+            results[f"{a}+{b}"] = combined_set
+        except Exception as e:
+            results[f"{a}+{b}"] = [f"❌ Combine error: {e}"]
+    return results
 
-    logs.append(entry)
-    with open(log_file, "w") as f:
-        json.dump(logs, f, indent=2)
+# === LEVEL 3 ===
+def level_3_with_custom(level_2_results, draw_history_df):
+    """Apply custom rules to Level 2 results."""
+    results = {}
+    for name, base_set in level_2_results.items():
+        try:
+            custom_applied = apply_custom_rules(draw_history_df, base_set)
+            custom_applied = ensure_unique_and_valid(custom_applied)
+            results[f"{name}+Custom"] = custom_applied
+        except Exception as e:
+            results[f"{name}+Custom"] = [f"❌ Custom rule error: {e}"]
+    return results
 
-def generate_accuracy_stub(methods):
-    return {method: {"correct_main": 0, "correct_powerball": 0, "total": 0} for method in methods}
+# === LEVEL 4 ===
+def level_4_all_methods(level_1_results):
+    """Combine all Level 1 methods together."""
+    try:
+        all_sets = list(level_1_results.values())
+        combined_set = combine_multiple_sets(all_sets)
+        combined_set = ensure_unique_and_valid(combined_set)
+        return {"AllMethodsCombined": combined_set}
+    except Exception as e:
+        return {"AllMethodsCombined": [f"❌ Level 4 error: {e}"]}
 
-def run_prediction_levels(level_config, features_df, models_dir, failure_history, log_file):
-    methods = level_config.get("methods", ["ml", "reward_learning"])
-    predictions = run_level_1(methods, features_df, models_dir, failure_history)
-    update_level_1_accuracies(log_file, predictions, actual_draw=[])  # Supply actual draw externally
-    return predictions
+# === WRAPPERS FOR STREAMLIT ===
+def run_level_1(draw_history_df, exclusions=None):
+    results = level_1_all_methods(draw_history_df, exclusions)
+    return {f"Level1_{k}": v for k, v in results.items()}
+
+def run_level_2(draw_history_df, exclusions=None):
+    level1 = level_1_all_methods(draw_history_df, exclusions)
+    level2 = level_2_combinations(level1)
+    return {f"Level2_{k}": v for k, v in level2.items()}
+
+def run_level_3(draw_history_df, exclusions=None):
+    level1 = level_1_all_methods(draw_history_df, exclusions)
+    level2 = level_2_combinations(level1)
+    level3 = level_3_with_custom(level2, draw_history_df)
+    return {f"Level3_{k}": v for k, v in level3.items()}
+
+def run_level_4(draw_history_df, exclusions=None):
+    level1 = level_1_all_methods(draw_history_df, exclusions)
+    level4 = level_4_all_methods(level1)
+    return {f"Level4_{k}": v for k, v in level4.items()}
+
+# === FULL PIPELINE FOR BATCH TESTING ===
+def run_all_levels(draw_history_df, exclusions=None):
+    """Run predictions across all levels and return dictionary of sets."""
+    results = {}
+    results.update(run_level_1(draw_history_df, exclusions))
+    results.update(run_level_2(draw_history_df, exclusions))
+    results.update(run_level_3(draw_history_df, exclusions))
+    results.update(run_level_4(draw_history_df, exclusions))
+    return results
+
+# === COMBINING LOGIC ===
+def combine_sets(set_a, set_b):
+    """Combine two sets by intersecting or voting logic (simple merge for now)."""
+    combined = list(set(set_a[:-1] + set_b[:-1]))[:6]  # Ensure 6 numbers
+    powerball = set_a[-1] if set_a[-1] == set_b[-1] else set_a[-1]  # Fallback logic
+    return combined + [powerball]
+
+def combine_multiple_sets(sets):
+    """Combine multiple sets (vote-based or merge logic)."""
+    number_votes = {}
+    for s in sets:
+        for n in s[:-1]:
+            number_votes[n] = number_votes.get(n, 0) + 1
+    sorted_by_votes = sorted(number_votes.items(), key=lambda x: -x[1])
+    combined = [num for num, _ in sorted_by_votes][:6]
+
+    powerballs = [s[-1] for s in sets if isinstance(s, list) and len(s) > 6]
+    powerball = max(set(powerballs), key=powerballs.count) if powerballs else 1
+    return combined + [powerball]

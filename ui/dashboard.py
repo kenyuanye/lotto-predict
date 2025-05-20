@@ -1,147 +1,79 @@
 import json
-import random
 import pandas as pd
-from collections import defaultdict
-from typing import List, Dict
 import streamlit as st
 import matplotlib.pyplot as plt
+from typing import List, Dict
 
-# === Constants ===
-NUMBERS_RANGE = list(range(1, 41))
-POWERBALL_RANGE = list(range(1, 11))
-NUM_MAIN_NUMBERS = 6
+from data_loader import load_draw_history
+from predictors.reward_learning_predictor import (
+    predict_with_reward_learning,
+    reward_learning_predictor,
+)
+
 CSV_LOG_FILE = "data/reward_learning_log.csv"
 BEST_FORMULA_FILE = "data/best_formula.json"
 
-# === Helper Functions ===
-def generate_random_set():
-    main_numbers = sorted(random.sample(NUMBERS_RANGE, NUM_MAIN_NUMBERS))
-    powerball = random.choice(POWERBALL_RANGE)
-    return main_numbers + [powerball]
+@st.cache_data(show_spinner=False)
+def get_draw_history() -> List[List[int]]:
+    df = load_draw_history()
+    return df[["1", "2", "3", "4", "5", "6", "Power Ball"]].values.tolist()
 
-def calculate_match(predicted, actual):
-    main_match = len(set(predicted[:6]) & set(actual[:6]))
-    powerball_match = predicted[6] == actual[6]
-    return main_match, powerball_match
+def render_level_1_dashboard(level1_predictions: Dict[str, List[int]]) -> None:
+    st.subheader("🔍 Level 1: Individual Method Predictions")
+    if not level1_predictions:
+        st.warning("No Level 1 predictions available.")
+        return
 
-def generate_formula_from_failures(failed_sets: List[List[int]]) -> Dict:
-    pos_values = defaultdict(list)
-    for fs in failed_sets:
-        for pos in range(6):
-            pos_values[f"pos_{pos+1}"].append(fs[pos])
+    cols = st.columns(3)
+    for idx, (method, numbers) in enumerate(level1_predictions.items()):
+        with cols[idx % 3]:
+            st.markdown(f"**{method}**")
+            st.write(f"🎯 Main: {numbers[:6]}")
+            st.write(f"⭐ Powerball: {numbers[6]}")
 
-    formula = {}
-    for pos, values in pos_values.items():
-        avg = sum(values) / len(values)
-        formula[pos] = {
-            "prefer_greater_than": round(avg),
-            "avoid_values": list(set(v for v in values if values.count(v) > 1))
-        }
-    return formula
+def render_level_2_dashboard(level2_predictions: Dict[str, List[int]]) -> None:
+    st.subheader("🧪 Level 2: Method Combinations")
+    st.info("Level 2 prediction logic not yet implemented.")
 
-def invert_formula(formula: Dict) -> Dict:
-    inverted = {}
-    for pos, rules in formula.items():
-        inverted[pos] = {
-            "prefer_less_than": rules.get("prefer_greater_than", 20),
-            "prefer_values": rules.get("avoid_values", [])
-        }
-    return inverted
+def render_level_3_dashboard(level3_predictions: Dict[str, List[int]]) -> None:
+    st.subheader("➕ Level 3: Combinations + Custom Rules")
+    st.info("Level 3 prediction logic not yet implemented.")
 
-def apply_formula(formula: Dict) -> List[int]:
-    numbers = []
-    for i in range(6):
-        rules = formula.get(f"pos_{i+1}", {})
-        pool = [n for n in NUMBERS_RANGE]
-        if "prefer_greater_than" in rules:
-            pool = [n for n in pool if n > rules["prefer_greater_than"]]
-        if "prefer_less_than" in rules:
-            pool = [n for n in pool if n < rules["prefer_less_than"]]
-        if "avoid_values" in rules:
-            pool = [n for n in pool if n not in rules["avoid_values"]]
-        if "prefer_values" in rules:
-            pool = pool + rules["prefer_values"]  # bias
-        numbers.append(random.choice(pool) if pool else random.randint(1, 40))
+def render_level_4_dashboard(level4_predictions: Dict[str, List[int]]) -> None:
+    st.subheader("🎛 Level 4: All Methods Combined")
+    st.info("Level 4 prediction logic not yet implemented.")
 
-    powerball = random.choice(POWERBALL_RANGE)
-    return sorted(numbers) + [powerball]
+def render_level_5_dashboard() -> None:
+    st.subheader("🧬 Level 5: Advanced / Meta Prediction")
+    st.info("Level 5 logic not yet implemented.")
 
-# === Main Reward Learning Predictor ===
-def reward_learning_predictor(draw_history: List[List[int]]) -> None:
-    formula_A, formula_B = None, None
-    logs = []
-
-    for idx, actual_draw in enumerate(draw_history):
-        failed_sets = []
-        attempts = 0
-        matched = False
-
-        while not matched:
-            prediction = generate_random_set()
-            failed_sets.append(prediction)
-            attempts += 1
-            main_match, powerball_match = calculate_match(prediction, actual_draw)
-            if main_match == 6 and powerball_match:
-                matched = True
-
-        formula_A = generate_formula_from_failures(failed_sets)
-        formula_B = invert_formula(formula_A)
-
-        # Test formula_A and formula_B on next draw if available
-        try:
-            next_draw = draw_history[idx + 1]
-            pred_A = apply_formula(formula_A)
-            pred_B = apply_formula(formula_B)
-            acc_A = calculate_match(pred_A, next_draw)
-            acc_B = calculate_match(pred_B, next_draw)
-        except IndexError:
-            acc_A = acc_B = (0, False)
-
-        logs.append({
-            "DrawIndex": idx,
-            "Attempts": attempts,
-            "FormulaA": json.dumps(formula_A),
-            "FormulaB": json.dumps(formula_B),
-            "FormulaA_MainMatch": acc_A[0],
-            "FormulaA_PBMatch": acc_A[1],
-            "FormulaB_MainMatch": acc_B[0],
-            "FormulaB_PBMatch": acc_B[1]
-        })
-
-    pd.DataFrame(logs).to_csv(CSV_LOG_FILE, index=False)
-    with open(BEST_FORMULA_FILE, "w") as f:
-        json.dump(formula_A, f, indent=2)
-    print(f"Reward learning predictor completed. Log saved to {CSV_LOG_FILE} and formula to {BEST_FORMULA_FILE}")
-
-# === Predict using learned formula ===
-def predict_with_reward_learning(n_sets: int = 10) -> List[List[int]]:
-    try:
-        with open(BEST_FORMULA_FILE, "r") as f:
-            formula = json.load(f)
-    except FileNotFoundError:
-        print("Best formula not found. Run reward_learning_predictor() first.")
-        return []
-
-    return [apply_formula(formula) for _ in range(n_sets)]
-
-# === Streamlit Dashboard Elements for Integration ===
-def render_reward_learning_dashboard():
+def render_reward_learning_dashboard() -> None:
     st.subheader("🧠 Reward Learning Formula Comparison")
+
+    st.markdown("### 🧪 Train New Reward Learning Formula")
+    if st.button("Run Reward Learning Predictor Now"):
+        with st.status("Training reward learning model... please wait.", expanded=True) as status:
+            try:
+                draw_history = get_draw_history()
+                reward_learning_predictor(draw_history)
+                status.update(label="✅ Training complete!", state="complete")
+            except Exception as e:
+                st.error(f"❌ Failed to run predictor: {e}")
+                status.update(label="❌ Training failed", state="error")
+
     try:
         log_df = pd.read_csv(CSV_LOG_FILE)
         st.dataframe(log_df)
 
-        # Accuracy plot
         st.markdown("### 📈 Formula A vs B Accuracy")
         fig, ax = plt.subplots()
-        ax.plot(log_df["DrawIndex"], log_df["FormulaA_MainMatch"], label="Formula A")
-        ax.plot(log_df["DrawIndex"], log_df["FormulaB_MainMatch"], label="Formula B")
+        ax.plot(log_df["DrawIndex"], log_df["FormulaA_MainMatch"], label="Formula A", marker="o")
+        ax.plot(log_df["DrawIndex"], log_df["FormulaB_MainMatch"], label="Formula B", marker="x")
         ax.set_xlabel("Draw Index")
         ax.set_ylabel("Main Match Count")
         ax.legend()
         st.pyplot(fig)
 
-        # Attempts chart
         st.markdown("### 🔁 Attempts Until Match")
         fig2, ax2 = plt.subplots()
         ax2.bar(log_df["DrawIndex"], log_df["Attempts"], color="orange")
@@ -150,19 +82,22 @@ def render_reward_learning_dashboard():
         st.pyplot(fig2)
 
     except FileNotFoundError:
-        st.warning("Reward learning log not found. Run predictor first.")
+        st.warning("⚠️ Reward learning log not found. Run the predictor first.")
 
     st.markdown("### 🧮 Current Best Formula (A)")
     try:
         with open(BEST_FORMULA_FILE, "r") as f:
-            formula = json.load(f)
+            formula: Dict = json.load(f)
         st.json(formula)
     except FileNotFoundError:
-        st.warning("Best formula not found.")
+        st.warning("⚠️ Best formula not found.")
 
     st.markdown("### 🎰 Generate Sets with Formula")
-    n_sets = st.slider("How many sets?", 1, 20, 10)
+    n_sets: int = st.slider("How many sets?", 1, 20, 10)
     if st.button("Generate Sets"):
-        sets = predict_with_reward_learning(n_sets)
-        for i, pred in enumerate(sets, 1):
-            st.write(f"{i}. 🎯 {pred[:6]} + PB: {pred[6]}")
+        sets: List[List[int]] = predict_with_reward_learning(n_sets)
+        if sets:
+            for i, pred in enumerate(sets, 1):
+                st.write(f"{i}. 🎯 {pred[:6]} + PB: {pred[6]}")
+        else:
+            st.error("No predictions generated. Ensure best formula file exists.")
