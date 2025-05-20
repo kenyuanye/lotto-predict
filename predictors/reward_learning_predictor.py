@@ -3,15 +3,12 @@ import random
 import pandas as pd
 from collections import defaultdict
 from typing import List, Dict
-import streamlit as st
-import matplotlib.pyplot as plt
 
 # === Constants ===
 NUMBERS_RANGE = list(range(1, 41))
 POWERBALL_RANGE = list(range(1, 11))
 NUM_MAIN_NUMBERS = 6
 CSV_LOG_FILE = "data/reward_learning_log.csv"
-BEST_FORMULA_FILE = "data/best_formula.json"
 
 # === Helper Functions ===
 def generate_random_set():
@@ -109,60 +106,5 @@ def reward_learning_predictor(draw_history: List[List[int]]) -> None:
         })
 
     pd.DataFrame(logs).to_csv(CSV_LOG_FILE, index=False)
-    with open(BEST_FORMULA_FILE, "w") as f:
-        json.dump(formula_A, f, indent=2)
-    print(f"Reward learning predictor completed. Log saved to {CSV_LOG_FILE} and formula to {BEST_FORMULA_FILE}")
+    print(f"Reward learning predictor completed. Log saved to {CSV_LOG_FILE}")
 
-# === Predict using learned formula ===
-def predict_with_reward_learning(n_sets: int = 10) -> List[List[int]]:
-    try:
-        with open(BEST_FORMULA_FILE, "r") as f:
-            formula = json.load(f)
-    except FileNotFoundError:
-        print("Best formula not found. Run reward_learning_predictor() first.")
-        return []
-
-    return [apply_formula(formula) for _ in range(n_sets)]
-
-# === Streamlit Dashboard Elements for Integration ===
-def render_reward_learning_dashboard():
-    st.subheader("🧠 Reward Learning Formula Comparison")
-    try:
-        log_df = pd.read_csv(CSV_LOG_FILE)
-        st.dataframe(log_df)
-
-        # Accuracy plot
-        st.markdown("### 📈 Formula A vs B Accuracy")
-        fig, ax = plt.subplots()
-        ax.plot(log_df["DrawIndex"], log_df["FormulaA_MainMatch"], label="Formula A")
-        ax.plot(log_df["DrawIndex"], log_df["FormulaB_MainMatch"], label="Formula B")
-        ax.set_xlabel("Draw Index")
-        ax.set_ylabel("Main Match Count")
-        ax.legend()
-        st.pyplot(fig)
-
-        # Attempts chart
-        st.markdown("### 🔁 Attempts Until Match")
-        fig2, ax2 = plt.subplots()
-        ax2.bar(log_df["DrawIndex"], log_df["Attempts"], color="orange")
-        ax2.set_xlabel("Draw Index")
-        ax2.set_ylabel("Attempts")
-        st.pyplot(fig2)
-
-    except FileNotFoundError:
-        st.warning("Reward learning log not found. Run predictor first.")
-
-    st.markdown("### 🧮 Current Best Formula (A)")
-    try:
-        with open(BEST_FORMULA_FILE, "r") as f:
-            formula = json.load(f)
-        st.json(formula)
-    except FileNotFoundError:
-        st.warning("Best formula not found.")
-
-    st.markdown("### 🎰 Generate Sets with Formula")
-    n_sets = st.slider("How many sets?", 1, 20, 10)
-    if st.button("Generate Sets"):
-        sets = predict_with_reward_learning(n_sets)
-        for i, pred in enumerate(sets, 1):
-            st.write(f"{i}. 🎯 {pred[:6]} + PB: {pred[6]}")

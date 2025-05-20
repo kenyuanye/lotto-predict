@@ -6,6 +6,7 @@ import pandas as pd
 from predictors.level_predictor import run_level_1
 from predictors.multi_level_predictor import run_level_2
 from ui.dashboard import render_level_1_dashboard
+from reward_learning_predictor import render_reward_learning_dashboard
 from utils.logger import setup_logger
 from data_loader import load_draw_history, load_active_tickets
 
@@ -57,6 +58,10 @@ with tab1:
     except Exception as e:
         st.warning(f"⚠️ Could not load accuracy data: {e}")
 
+    # Add reward learning dashboard
+    st.markdown("---")
+    with st.expander("📘 Reward Learning Predictor Dashboard", expanded=False):
+        render_reward_learning_dashboard()
 
 with tab2:
     st.subheader("Level 2 — Combined Predictors (Pairs)")
