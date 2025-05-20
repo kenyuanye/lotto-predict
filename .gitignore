@@ -1,6 +1,7 @@
 # Ignore directories
 artifacts/*
 data/*
+logs/*
 models/*
 
 # Exception for sub directory and files
