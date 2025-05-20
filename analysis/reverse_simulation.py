@@ -1,5 +1,5 @@
 import random
-from utils.match_rate_calculator import calculate_match_rate
+from core.match_rate_calculator import calculate_match_rate
 
 
 def generate_random_set():

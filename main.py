@@ -5,10 +5,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Core utilities
-from utils.logger import setup_logger, save_predictions, save_predicted_sets, compare_with_actual
-from utils.model_utils import get_available_models
+from core.logger import setup_logger, save_predictions, save_predicted_sets, compare_with_actual
+from core.model_utils import get_available_models
 from legacy_prediction.predictor import get_excluded_numbers
-from legacy_prediction.hybrid_predictor import filter_and_rank_sets
+from predictors.hybrid_predictor import filter_and_rank_sets
 
 # Rules and analysis
 from rules.custom_rules import calculate_powerball_gaps
@@ -21,7 +21,7 @@ from analysis.analysis import plot_hot_cold_numbers
 from data_loader import load_draw_history, load_active_tickets
 
 # Multi-level predictor controller
-from predictors.level_predictor import run_prediction_levels
+from predictors.multi_level_predictor import run_prediction_levels
 from ui.dashboard import plot_level_accuracy_comparison
 
 

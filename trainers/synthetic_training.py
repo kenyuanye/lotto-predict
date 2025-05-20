@@ -10,8 +10,8 @@ import joblib
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.multioutput import MultiOutputRegressor
 
-from utils.feature_engineering import build_features_for_prediction
-from utils import NUMBER_COLUMNS, POWERBALL_COLUMN
+from core.feature_engineering import build_features_for_prediction
+from core import NUMBER_COLUMNS, POWERBALL_COLUMN
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")

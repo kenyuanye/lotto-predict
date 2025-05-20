@@ -3,13 +3,13 @@ import pandas as pd
 import numpy as np
 
 # Corrected legacy imports
-from legacy_prediction.ml_predictor import predict_with_ml
-from legacy_prediction.symbolic_predictor import predict_with_symbolic
-from legacy_prediction.walkforward_predictor import predict_with_walkforward
-from legacy_prediction.reverse_engineering import predict_with_reverse
-from legacy_prediction.custom_rules_predictor import predict_custom_rules as apply_custom_rules
-from legacy_prediction.ensemble_predictor import ensure_unique_and_valid
-from utils.feature_engineering import build_features_for_prediction
+from predictors.multi_level_predictor import predict_with_ml
+from predictors.symbolic_predictor import predict_with_symbolic
+from predictors.walkforward_predictor import predict_with_walkforward
+from predictors.reverse_engineering import predict_with_reverse
+from predictors.custom_rules_predictor import predict_custom_rules as apply_custom_rules
+from predictors.ensemble_predictor import ensure_unique_and_valid
+from core.feature_engineering import build_features_for_prediction
 
 # Must match training time
 EXPECTED_FEATURES = [

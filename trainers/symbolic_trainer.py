@@ -9,8 +9,8 @@ from gplearn.genetic import SymbolicRegressor
 # Enable parent directory access
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from utils.feature_engineering import build_features_for_prediction
-from utils import NUMBER_COLUMNS, POWERBALL_COLUMN
+from core.feature_engineering import build_features_for_prediction
+from core import NUMBER_COLUMNS, POWERBALL_COLUMN
 
 MODEL_DIR = os.path.join(os.path.dirname(__file__), "..", "models", "models_symbolic")
 os.makedirs(MODEL_DIR, exist_ok=True)

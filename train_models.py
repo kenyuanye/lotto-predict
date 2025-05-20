@@ -7,7 +7,7 @@ import pandas as pd
 import logging
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.multioutput import MultiOutputRegressor
-from utils.feature_engineering import build_features_for_prediction
+from core.feature_engineering import build_features_for_prediction
 
 logger = logging.getLogger("train_models")
 logging.basicConfig(level=logging.INFO)

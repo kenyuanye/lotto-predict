@@ -1,4 +1,4 @@
-# utils/ensemble_predictor.py
+# legacy_prediction/legacy_ensemble_predictor.py
 
 import numpy as np
 
@@ -63,9 +63,9 @@ def ensure_unique_and_valid(prediction_sets):
             valid_sets.append(sorted(main) + [pb])
     return valid_sets
 
-from legacy_prediction.ml_predictor import predict_with_ml
-from legacy_prediction.symbolic_predictor import predict_with_symbolic
-from legacy_prediction.walkforward_predictor import predict_with_walkforward
+from predictors.multi_level_predictor import predict_with_ml
+from predictors.symbolic_predictor import predict_with_symbolic
+from predictors.walkforward_predictor import predict_with_walkforward
 
 def predict_with_ensemble(draw_df):
     """

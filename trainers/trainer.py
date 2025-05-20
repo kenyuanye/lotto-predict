@@ -7,7 +7,7 @@ import logging
 from train_models import train_models  # ML trainer
 from trainers.symbolic_trainer import train_symbolic_models
 
-from utils.feature_engineering import build_features_for_prediction
+from core.feature_engineering import build_features_for_prediction
 
 MODEL_PATH = "models"
 

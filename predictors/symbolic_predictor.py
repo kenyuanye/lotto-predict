@@ -2,8 +2,8 @@ import os
 import joblib
 import numpy as np
 import pandas as pd
-from utils.feature_engineering import build_features_for_prediction
-from utils import NUMBER_COLUMNS, POWERBALL_COLUMN
+from core.feature_engineering import build_features_for_prediction
+from core import NUMBER_COLUMNS, POWERBALL_COLUMN
 
 SYMBOLIC_MODEL_PATH = "models/models_symbolic"
 

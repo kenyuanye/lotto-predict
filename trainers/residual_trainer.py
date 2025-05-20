@@ -10,9 +10,9 @@ from sklearn.multioutput import MultiOutputRegressor
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error
 
-from utils.feature_engineering import build_features_for_prediction
-from utils import NUMBER_COLUMNS, POWERBALL_COLUMN
-from utils.model_utils import load_models
+from core.feature_engineering import build_features_for_prediction
+from core import NUMBER_COLUMNS, POWERBALL_COLUMN
+from core.model_utils import load_models
 
 MODEL_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
 os.makedirs(MODEL_DIR, exist_ok=True)
