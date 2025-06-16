@@ -5,9 +5,8 @@ import joblib
 import logging
 from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 from sklearn.multioutput import MultiOutputRegressor
-from utils.predictor import generate_candidate_sets
+from legacy_prediction.predictor import generate_candidate_sets  # updated import
 
-# Paths
 MODEL_DIR = "models"
 os.makedirs(MODEL_DIR, exist_ok=True)
 
@@ -78,11 +77,11 @@ def walkforward_simulation(draw_df: pd.DataFrame, top_n: int = 10):
                 logger.info(f"✅ Simulated up to draw {predict_row['Draw Number']}")
 
         except Exception as e:
-            logger.error(f\"❌ Error during walkforward step {i}: {e}\", exc_info=True)
+            logger.error(f"❌ Error during walkforward step {i}: {e}", exc_info=True)
 
     result_df = pd.DataFrame(results)
-    output_path = \"data/walkforward_simulation_results.csv\"
+    output_path = "data/walkforward_simulation_results.csv"
     result_df.to_csv(output_path, index=False)
-    logger.info(f\"💾 Walkforward simulation results saved to {output_path}\")
+    logger.info(f"💾 Walkforward simulation results saved to {output_path}")
 
     return result_df

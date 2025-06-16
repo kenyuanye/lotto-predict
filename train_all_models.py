@@ -1,9 +1,16 @@
 # train_all_models.py
 
 import logging
-from utils.trainer import train_models
-from utils.synthetic_training import train_on_synthetic_data
-from utils.blended_training import train_blended_model
+import pandas as pd
+from train_models import train_models
+from trainers.symbolic_trainer import train_symbolic_models
+from trainers.synthetic_training import train_on_synthetic_data
+from trainers.blended_training import train_blended_model
+from legacy_prediction.residual_predictor import train_residual_models
+
+import joblib
+import os
+
 
 def setup_basic_logger():
     logging.basicConfig(
@@ -14,24 +21,40 @@ def setup_basic_logger():
 
 def main():
     logger = setup_basic_logger()
-
     logger.info("🚀 Starting full training sequence...")
 
     try:
-        # Step 1: Train Real Models
+        # Step 1: Train Real Models (ML + Symbolic)
         logger.info("🧠 Training real historical models...")
-        import pandas as pd
         draw_df = pd.read_excel("data/draw_history.xlsx", parse_dates=["Draw Date"])
         draw_df.columns = draw_df.columns.astype(str).str.strip()
-        train_models(draw_df, logger)
+        draw_df = draw_df.sort_values("Draw Number").reset_index(drop=True)
+        draw_df["DrawIndex"] = draw_df.index
+
+        train_models(draw_df, logger=logger)
+        train_symbolic_models(draw_df)
 
     except Exception as e:
         logger.error(f"❌ Failed during real model training: {e}", exc_info=True)
 
     try:
+        # ✅ Step 1.5: Train Residual Models (after base ML)
+        logger.info("🔁 Training residual models...")
+        model_dir = "models"
+        models = {
+            "full": joblib.load(os.path.join(model_dir, "model_fullset.pkl")),
+            "Power Ball": joblib.load(os.path.join(model_dir, "model_powerball.pkl"))
+        }
+        train_residual_models(draw_df, models, logger=logger)
+
+    except Exception as e:
+        logger.error(f"❌ Failed during residual model training: {e}", exc_info=True)
+
+    try:
         # Step 2: Train Synthetic Models
         logger.info("🤖 Training synthetic models...")
         train_on_synthetic_data(logger)
+
     except Exception as e:
         logger.error(f"❌ Failed during synthetic model training: {e}", exc_info=True)
 
@@ -39,6 +62,7 @@ def main():
         # Step 3: Train Blended Models
         logger.info("🧬 Training blended models...")
         train_blended_model(real_weight=0.7, logger=logger)
+
     except Exception as e:
         logger.error(f"❌ Failed during blended model training: {e}", exc_info=True)
 

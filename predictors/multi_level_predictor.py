@@ -1,95 +1,105 @@
+# legacy_prediction/multi_level_predictor.py
+
+from predictors.level_predictor import run_level_1
+from collections import Counter
 import itertools
-from predictors.ml_predictor import predict_with_ml
-from predictors.symbolic_predictor import predict_with_symbolic
-from predictors.walkforward_predictor import predict_with_walkforward
-from predictors.reverse_engineering import predict_with_reverse
-from predictors.custom_rules_predictor import apply_custom_rules
-from predictors.ensemble_predictor import ensure_unique_and_valid
+import pandas as pd
+import numpy as np
 
 
-def level_1_all_methods(draw_history_df, exclusions=None):
-    """Run all level 1 prediction methods individually."""
-    methods = {
-        'ML': predict_with_ml,
-        'Symbolic': predict_with_symbolic,
-        'Walkforward': predict_with_walkforward,
-        'Reverse': predict_with_reverse,
-        'Custom': lambda df, ex: apply_custom_rules(df)
-    }
-    results = {}
-    for name, func in methods.items():
-        prediction = func(draw_history_df, exclusions)
-        prediction = ensure_unique_and_valid(prediction)
-        results[name] = prediction
-    return results
+def merge_two_predictions(pred1, pred2):
+    """
+    Merges two prediction dictionaries into one via frequency vote for main numbers.
+    Keeps Powerball if they match, else uses pred1's.
+    """
+    if not pred1 or not pred2:
+        return {"main": [], "powerball": None}
 
+    try:
+        merged_main = list(Counter(pred1["main"] + pred2["main"]).most_common())
+        top_main = sorted(set([num for num, _ in merged_main]))[:6]
 
-def level_2_combinations(level_1_results):
-    """Generate predictions from combinations of two Level 1 methods."""
-    combinations = list(itertools.combinations(level_1_results.keys(), 2))
-    results = {}
-    for combo in combinations:
-        a, b = combo
-        combined_set = combine_sets(level_1_results[a], level_1_results[b])
-        combined_set = ensure_unique_and_valid(combined_set)
-        results[f"{a}+{b}"] = combined_set
-    return results
+        while len(top_main) < 6:
+            filler = np.random.randint(1, 41)
+            if filler not in top_main:
+                top_main.append(filler)
 
+        top_main = sorted(top_main[:6])
+        powerball = pred1["powerball"] if pred1["powerball"] == pred2["powerball"] else pred1["powerball"]
+        powerball = max(1, min(powerball, 10))
 
-def level_3_with_custom(level_2_results, draw_history_df):
-    """Apply custom rules to Level 2 results."""
-    results = {}
-    for name, base_set in level_2_results.items():
-        custom_applied = apply_custom_rules(draw_history_df, base_set)
-        custom_applied = ensure_unique_and_valid(custom_applied)
-        results[f"{name}+Custom"] = custom_applied
-    return results
+        return {"main": top_main, "powerball": powerball}
+    except Exception as e:
+        print(f"[merge_two_predictions] Failed to merge: {e}")
+        return {"main": [], "powerball": None}
 
-
-def level_4_all_methods(level_1_results):
-    """Combine all Level 1 methods together."""
-    all_sets = list(level_1_results.values())
-    combined_set = combine_multiple_sets(all_sets)
-    combined_set = ensure_unique_and_valid(combined_set)
-    return {"AllMethodsCombined": combined_set}
-
-
-# --- Utility functions ---
 
 def combine_sets(set_a, set_b):
-    """Combine two sets by intersecting or voting logic (simple merge for now)."""
-    combined = list(set(set_a[:-1] + set_b[:-1]))[:6]  # Ensure 6 numbers
-    powerball = set_a[-1] if set_a[-1] == set_b[-1] else set_a[-1]  # Fallback logic
-    return combined + [powerball]
+    """
+    Combine two sets of predictions (each should be a list of 7 numbers).
+    Returns a 7-number list or [] if invalid.
+    """
+    if not isinstance(set_a, list) or not isinstance(set_b, list):
+        print("[combine_sets] One or both sets are not lists.")
+        return []
+    if len(set_a) != 7 or len(set_b) != 7:
+        print(f"[combine_sets] Invalid input lengths: {len(set_a)} / {len(set_b)}")
+        return []
+
+    try:
+        main_a, pb_a = set_a[:6], set_a[6]
+        main_b, pb_b = set_b[:6], set_b[6]
+
+        merged_main = list(Counter(main_a + main_b).most_common())
+        final_main = sorted(set([num for num, _ in merged_main]))[:6]
+
+        while len(final_main) < 6:
+            filler = np.random.randint(1, 41)
+            if filler not in final_main:
+                final_main.append(filler)
+        final_main = sorted(final_main[:6])
+
+        final_pb = pb_a if pb_a == pb_b else pb_a
+        final_pb = max(1, min(final_pb, 10))
+
+        return final_main + [final_pb]
+    except Exception as e:
+        print(f"[combine_sets] Failed to merge sets: {e}")
+        return []
 
 
-def combine_multiple_sets(sets):
-    """Combine multiple sets (vote-based or merge logic)."""
-    number_votes = {}
-    for s in sets:
-        for n in s[:-1]:
-            number_votes[n] = number_votes.get(n, 0) + 1
-    sorted_by_votes = sorted(number_votes.items(), key=lambda x: -x[1])
-    combined = [num for num, _ in sorted_by_votes][:6]
+def run_level_2(draw_data):
+    """
+    Run all pairwise combinations of Level 1 predictors.
+    Returns a dictionary like:
+    {
+        'ml+symbolic': {main: [...], powerball: ...},
+        'ml+walkforward': {...},
+        ...
+    }
+    """
+    level1_outputs = run_level_1(draw_data)
+    method_names = list(level1_outputs.keys())
 
-    powerballs = [s[-1] for s in sets]
-    powerball = max(set(powerballs), key=powerballs.count)
-    return combined + [powerball]
-
-
-def run_all_levels(draw_history_df, exclusions=None):
-    """Run predictions across all levels and return dictionary of sets."""
     results = {}
-    lvl1 = level_1_all_methods(draw_history_df, exclusions)
-    results.update({f"Level1_{k}": v for k, v in lvl1.items()})
+    for method1, method2 in itertools.combinations(method_names, 2):
+        pred1_raw = level1_outputs.get(method1)
+        pred2_raw = level1_outputs.get(method2)
 
-    lvl2 = level_2_combinations(lvl1)
-    results.update({f"Level2_{k}": v for k, v in lvl2.items()})
+        if not isinstance(pred1_raw, list) or not isinstance(pred2_raw, list):
+            continue
+        if not pred1_raw or not pred2_raw:
+            continue
+        if not isinstance(pred1_raw[0], list) or not isinstance(pred2_raw[0], list):
+            continue
+        if len(pred1_raw[0]) != 7 or len(pred2_raw[0]) != 7:
+            print(f"[run_level_2] Skipping {method1}+{method2} due to invalid prediction lengths.")
+            continue
 
-    lvl3 = level_3_with_custom(lvl2, draw_history_df)
-    results.update({f"Level3_{k}": v for k, v in lvl3.items()})
+        pred1 = {"main": pred1_raw[0][:6], "powerball": pred1_raw[0][6]}
+        pred2 = {"main": pred2_raw[0][:6], "powerball": pred2_raw[0][6]}
 
-    lvl4 = level_4_all_methods(lvl1)
-    results.update({f"Level4_{k}": v for k, v in lvl4.items()})
+        merged = merge_two_predictions(pred1, pred2)
+        results[f"{method1}+{method2}"] = merged
 
     return results

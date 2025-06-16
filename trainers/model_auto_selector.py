@@ -1,14 +1,18 @@
-# utils/model_auto_selector.py
+# trainers/model_auto_selector.py
 
 import os
+import sys
 import joblib
 import numpy as np
 from sklearn.metrics import mean_absolute_error
 
-MODEL_DIR = "models"
+# Ensure proper imports from parent directory
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-NUMBER_COLUMNS = ["1", "2", "3", "4", "5", "6"]
-POWERBALL_COLUMN = "Power Ball"
+from utils.feature_engineering import build_features_for_prediction
+from utils import NUMBER_COLUMNS, POWERBALL_COLUMN
+
+MODEL_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
 
 def load_model(model_name):
     try:
@@ -30,8 +34,11 @@ def evaluate_model(model, X, y_true):
         return np.inf
 
 def auto_select_best_model(draw_df, for_powerball=False):
-    """Auto-select the best model: real, synthetic, blended based on validation MAE."""
-    X = np.arange(len(draw_df)).reshape(-1, 1)
+    """
+    Auto-select the best model (real, synthetic, blended) based on lowest validation MAE.
+    Returns the best model and a dict of MAEs.
+    """
+    features = build_features_for_prediction(draw_df)
 
     if for_powerball:
         y = draw_df[POWERBALL_COLUMN].values
@@ -49,17 +56,16 @@ def auto_select_best_model(draw_df, for_powerball=False):
         }
 
     results = {}
-    for name, file in model_files.items():
-        model = load_model(file)
+    for label, filename in model_files.items():
+        model = load_model(filename)
         if model:
-            mae = evaluate_model(model, X, y)
-            results[name] = mae
+            mae = evaluate_model(model, features, y)
+            results[label] = mae
 
     if not results:
         return None, {}
 
-    best_model_type = min(results, key=results.get)
-    best_model_path = model_files[best_model_type]
-    best_model = load_model(best_model_path)
+    best_model_label = min(results, key=results.get)
+    best_model = load_model(model_files[best_model_label])
 
     return best_model, results

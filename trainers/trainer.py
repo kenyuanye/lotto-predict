@@ -2,123 +2,44 @@
 
 import os
 import joblib
-import numpy as np
 import pandas as pd
 import logging
-from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
-from sklearn.multioutput import MultiOutputRegressor
+from train_models import train_models  # ML trainer
+from trainers.symbolic_trainer import train_symbolic_models
 
-MODEL_DIR = "models"
-os.makedirs(MODEL_DIR, exist_ok=True)
+from utils.feature_engineering import build_features_for_prediction
 
-NUMBER_COLUMNS = ["1", "2", "3", "4", "5", "6"]
-POWERBALL_COLUMN = "Power Ball"
+MODEL_PATH = "models"
 
-MODEL_FILE_NAMES = {
-    **{col: f"model_pos{i+1}.pkl" for i, col in enumerate(NUMBER_COLUMNS)},
-    "full": "model_fullset.pkl",
-    POWERBALL_COLUMN: "model_powerball.pkl",
-}
+logger = logging.getLogger("trainer")
 
-def train_models(df, logger=None):
-    df = df.copy()
-    df = df.sort_values("Draw Date").reset_index(drop=True)
-    df["DrawIndex"] = df.index
+def run_all_trainers(draw_df: pd.DataFrame):
+    """
+    Run all model training workflows (ML + symbolic).
+    """
+    logger.info("✅ Starting full training pipeline...")
+    draw_df = draw_df.sort_values("Draw Number").reset_index(drop=True)
 
-    missing_before = df[NUMBER_COLUMNS + [POWERBALL_COLUMN]].isnull().sum().sum()
-    df = df.dropna(subset=NUMBER_COLUMNS + [POWERBALL_COLUMN])
-    missing_after = df[NUMBER_COLUMNS + [POWERBALL_COLUMN]].isnull().sum().sum()
+    # Ensure correct features are built
+    _ = build_features_for_prediction(draw_df)
 
-    log = logger.info if logger else print
-    log(f"⚠️ Dropped {missing_before - missing_after} missing values from training data")
+    train_models(draw_df, logger=logger)
+    train_symbolic_models(draw_df)
 
-    X = df[["DrawIndex"]]
-    Y = df[NUMBER_COLUMNS].values
-    Y_pb = df[POWERBALL_COLUMN].values
+    logger.info("✅ All training complete.")
 
-    try:
-        # Train individual number models
-        for i, col in enumerate(NUMBER_COLUMNS):
-            model = RandomForestRegressor(n_estimators=200, random_state=42)
-            model.fit(X, Y[:, i])
-            joblib.dump(model, os.path.join(MODEL_DIR, MODEL_FILE_NAMES[col]))
-            log(f"✅ Trained and saved model for number position {col}")
+def run_sequential_training(df: pd.DataFrame, logger=None):
+    """
+    Run sequential one-step-ahead training for accuracy simulation.
+    """
+    from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+    import numpy as np
 
-        # Full set model
-        model_full = MultiOutputRegressor(RandomForestRegressor(n_estimators=300, random_state=42))
-        model_full.fit(X, Y)
-        joblib.dump(model_full, os.path.join(MODEL_DIR, MODEL_FILE_NAMES["full"]))
-        log("✅ Trained and saved full set model")
-
-        # Powerball model
-        model_pb = RandomForestClassifier(n_estimators=200, random_state=42)
-        model_pb.fit(X, Y_pb)
-        joblib.dump(model_pb, os.path.join(MODEL_DIR, MODEL_FILE_NAMES[POWERBALL_COLUMN]))
-        log("✅ Trained and saved PowerBall model")
-
-    except Exception as e:
-        err = logger.error if logger else print
-        err(f"❌ Model training failed: {e}", exc_info=True)
-
-def load_models():
-    models = {}
-    try:
-        # Always load Full Set model
-        full_model_path = os.path.join(MODEL_DIR, "model_fullset.pkl")
-        if os.path.exists(full_model_path):
-            models["full"] = joblib.load(full_model_path)
-            logging.info("✅ Loaded full set model.")
-        else:
-            logging.warning("⚠️ Full set model (model_fullset.pkl) not found.")
-
-        # Always load PowerBall model
-        powerball_model_path = os.path.join(MODEL_DIR, "model_powerball.pkl")
-        if os.path.exists(powerball_model_path):
-            models["Power Ball"] = joblib.load(powerball_model_path)
-            logging.info("✅ Loaded PowerBall model.")
-        else:
-            logging.warning("⚠️ PowerBall model (model_powerball.pkl) not found.")
-
-        # Load per-position models 1–6 if available
-        for i in range(1, 7):
-            pos_model_path = os.path.join(MODEL_DIR, f"model_pos{i}.pkl")
-            if os.path.exists(pos_model_path):
-                models[str(i)] = joblib.load(pos_model_path)
-                logging.info(f"✅ Loaded model_pos{i}.pkl for position {i}.")
-            else:
-                logging.info(f"ℹ️ Position model model_pos{i}.pkl not found. Skipping.")
-
-        # Load optional synthetic models if available
-        synthetic_full_path = os.path.join(MODEL_DIR, "model_fullset_synthetic.pkl")
-        synthetic_pb_path = os.path.join(MODEL_DIR, "model_powerball_synthetic.pkl")
-        if os.path.exists(synthetic_full_path):
-            models["full_synthetic"] = joblib.load(synthetic_full_path)
-            logging.info("✅ Loaded synthetic full set model.")
-        if os.path.exists(synthetic_pb_path):
-            models["powerball_synthetic"] = joblib.load(synthetic_pb_path)
-            logging.info("✅ Loaded synthetic PowerBall model.")
-
-        # Load optional blended models if available
-        blended_full_path = os.path.join(MODEL_DIR, "model_fullset_blended.pkl")
-        blended_pb_path = os.path.join(MODEL_DIR, "model_powerball_blended.pkl")
-        if os.path.exists(blended_full_path):
-            models["full_blended"] = joblib.load(blended_full_path)
-            logging.info("✅ Loaded blended full set model.")
-        if os.path.exists(blended_pb_path):
-            models["powerball_blended"] = joblib.load(blended_pb_path)
-            logging.info("✅ Loaded blended PowerBall model.")
-
-        return models
-
-    except Exception as e:
-        logging.error(f"❌ Failed to load models: {e}", exc_info=True)
-        return {}
-
-
-
-def run_sequential_training(df, logger=None):
     df = df.copy().sort_values("Draw Number").reset_index(drop=True)
     df["DrawIndex"] = df.index
+
+    NUMBER_COLUMNS = ["1", "2", "3", "4", "5", "6"]
+    POWERBALL_COLUMN = "Power Ball"
 
     log = logger.info if logger else print
     err = logger.error if logger else print
@@ -170,3 +91,33 @@ def run_sequential_training(df, logger=None):
         log(f"  {col}: {acc}%")
 
     return summary
+
+
+def load_models():
+    """
+    Load all trained models from the models directory.
+    Returns:
+        dict: key → model name, value → loaded model
+    """
+    models = {}
+    if not os.path.exists(MODEL_PATH):
+        logging.warning("⚠️ Model path does not exist.")
+        return models
+
+    for filename in os.listdir(MODEL_PATH):
+        if filename.endswith(".joblib"):
+            full_path = os.path.join(MODEL_PATH, filename)
+            try:
+                model = joblib.load(full_path)
+                model_name = os.path.splitext(filename)[0]
+                models[model_name] = model
+            except Exception as e:
+                logging.error(f"❌ Failed to load model {filename}: {e}")
+    return models
+
+
+# Optional entrypoint
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    draw_df = pd.read_excel("data/draw_history.xlsx", parse_dates=["Draw Date"])
+    run_all_trainers(draw_df)

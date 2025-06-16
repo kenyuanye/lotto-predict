@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
-from utils.custom_rules import (
+
+from rules.custom_rules import (
     number_occurrence_map,
     position1_bias_needed,
     powerball_repeat_bias,
@@ -41,7 +42,7 @@ def predict_custom_rules(draw_df, top_n=10):
         main_numbers = set(np.random.choice(weighted_pool, 6, replace=False))
 
         # Powerball prediction
-        pb_weights = powerball_bias_weight(pb_gaps)
+        pb_weights = powerball_bias_weight(pb_gaps, draw_df)  # ✅ FIXED HERE
         powerball = int(np.random.choice(range(1, 11), p=pb_weights))
 
         candidate = sorted(main_numbers) + [powerball]
@@ -62,3 +63,10 @@ def predict_custom_rules(draw_df, top_n=10):
         }
     }
 
+def predict_with_custom_rules(draw_df):
+    """
+    Wrapper for compatibility with level_predictor.
+    Extracts 'predictions' list from the custom rule predictor output.
+    """
+    result = predict_custom_rules(draw_df)
+    return result["predictions"] if isinstance(result, dict) and "predictions" in result else []

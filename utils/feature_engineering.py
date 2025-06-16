@@ -1,5 +1,3 @@
-# utils/feature_engineering.py
-
 import pandas as pd
 import numpy as np
 
@@ -60,7 +58,6 @@ def get_feature_dataframe(draw_df: pd.DataFrame, window: int = 20) -> pd.DataFra
         avg_last_seen = np.mean(last_seen)
 
         features.append({
-            "Draw Number": row["Draw Number"],
             "Sum": sum_val,
             "OddCount": odd_count,
             "EvenCount": even_count,
@@ -71,6 +68,23 @@ def get_feature_dataframe(draw_df: pd.DataFrame, window: int = 20) -> pd.DataFra
             "RepeatsFromLast": repeats,
             "HotnessScore": hotness,
             "LastSeenGapAvg": avg_last_seen,
+            "DrawIndex": i  # ensure included explicitly
         })
 
     return pd.DataFrame(features)
+
+def build_features_for_prediction(draw_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Wrapper that builds features for prediction.
+    Ensures the standardized 11-column schema is returned.
+    """
+    features_df = get_feature_dataframe(draw_df)
+
+    # Reorder to match expected feature order (ML + symbolic)
+    EXPECTED_FEATURES = [
+        "Sum", "OddCount", "EvenCount", "Range", "ConsecCount",
+        "HighCount", "LowCount", "RepeatsFromLast",
+        "HotnessScore", "LastSeenGapAvg", "DrawIndex"
+    ]
+
+    return features_df[EXPECTED_FEATURES]
